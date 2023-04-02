@@ -1,0 +1,232 @@
+// © sikako
+
+//@version=5
+strategy("KC_整合", shorttitle = "KC", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, commission_value = 0.04, initial_capital = 1000, process_orders_on_close = true, max_bars_back = 500)
+
+
+
+my_strategy = input.string(defval = "逆勢主順勢輔",title = "策略種類", options = ["順勢主逆勢輔", "逆勢主順勢輔","雙開流", "只有順勢", "只有逆勢"])
+
+// ---------------------------------------------
+// date
+startTime = input.time(timestamp("1 Jan 2018 00:00 +0800"), "開始時間", group = "回測時間")
+endTime = input.time(timestamp("1 Jan 3000 00:00 +0800"), "結束時間", group = "回測時間")
+window()  => time >= startTime and time <= endTime ? true : false
+
+// ------------------------------------
+same = input.string(defval = "120", title = "順勢基期(分鐘)", group =  "順勢參數")
+kc_length_same = input(defval = 240, title = "順勢 KC天數", group = "順勢參數")
+P_L_ratio_same = input(defval = 2.0, title = "順勢盈虧比", group = "順勢參數")
+convert = input.string(defval = "60", title = "逆勢基期(分鐘)", group = "逆勢參數")
+kc_length_convert = input(defval = 180, title = "逆勢 KC天數", group = "逆勢參數")
+P_L_ratio_convert = input(defval = 1.0, title = "逆勢盈虧比", group = "逆勢參數")
+mult1_same = input(defval = 2.0, title = "KC1順勢乘數", group = "順勢參數")
+mult2_same = input(defval = 3.0, title = "KC2順勢乘數", group = "順勢參數")
+mult1_convert = input(defval = 2.5, title = "KC1逆勢乘數", group = "逆勢參數")
+mult2_convert = input(defval = 3.0, title = "KC2逆勢乘數", group = "逆勢參數")
+
+[close_same, open_same, high_same, low_same] = request.security(syminfo.tickerid, same, [close, open, high, low])
+[close_convert, open_convert, high_convert, low_convert] = request.security(syminfo.tickerid, convert , [close, open, high, low])
+
+[middle_2_same, upper_2_same, lower_2_same] = ta.kc(close_same, kc_length_same, mult1_same)
+[middle_3_same, upper_3_same, lower_3_same] = ta.kc(close_same, kc_length_same, mult2_same)
+[middle_2_convert, upper_2_convert, lower_2_convert] = ta.kc(close_convert, kc_length_convert, mult1_convert)
+[middle_3_convert, upper_3_convert, lower_3_convert] = ta.kc(close_convert, kc_length_convert, mult2_convert)
+
+// KC 畫圖
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? upper_3_same : my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? upper_3_convert : na, color=color.white, title = "KC3上軌")
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? upper_2_same : my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? upper_2_convert : na, color=color.yellow, title = "KC2上軌")
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? middle_2_same : my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? middle_2_convert : na, color=color.blue, title = "KC中軌")
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? lower_2_same : my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? lower_2_convert : na, color=color.yellow, title = "KC2下軌")
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? lower_3_same : my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? lower_3_convert : na, color=color.white, title = "KC3下軌")
+
+// 做多--------------------------------------------------------------
+g_same = close_same > open_same
+g_convert = close_convert > open_convert
+
+// 上穿
+crossover_upper_3_same = ta.crossover(close_same, upper_3_same)
+crossover_upper_3_convert = ta.crossover(close_convert, upper_3_convert)
+
+// 做空-------------------------------------------------------------
+r_same = close_same < open_same
+r_convert = close_convert < open_convert
+
+// 下穿
+crossunder_lower_3_same = ta.crossunder(close_same, lower_3_same)
+crossunder_lower_3_convert = ta.crossunder(close_convert, lower_3_convert)
+
+// 穿中軸
+cross_middle_same = ta.cross(close_same, middle_3_same)
+cross_middle_convert = ta.cross(close_convert, middle_3_convert)
+
+crossover_lower_2_convert = ta.crossover(close_convert, lower_2_convert)
+since_lower_3_convert = ta.barssince(crossunder_lower_3_convert)
+since_lower_2_convert = ta.barssince(crossover_lower_2_convert)
+crossunder_upper_2_convert = ta.crossunder(close_convert, upper_2_convert)
+since_upper_3_convert = ta.barssince(crossover_upper_3_convert)
+since_upper_2_convert = ta.barssince(crossunder_upper_2_convert)
+
+
+// 趨勢 -----------------------------------------------------------------------
+exit_bar_index = strategy.closedtrades.exit_bar_index(strategy.closedtrades - 1)
+exit_bar_comment = strategy.closedtrades.exit_comment(strategy.closedtrades - 1)
+exit_bar_id = strategy.closedtrades.exit_id(strategy.closedtrades - 1)
+entry_bar_id = strategy.opentrades.entry_id(strategy.opentrades + 1)
+
+trend_same = 0
+trend_same := nz(trend_same[1], 0)
+trend_same := exit_bar_index == bar_index ? 0 : crossover_upper_3_same ? 1 : crossunder_lower_3_same ? -1 : cross_middle_same ? 0 : trend_same
+
+
+
+// ---------------------------------------------------------------------------
+
+trend_convert = 0
+trend_convert := nz(trend_convert[1], 0)
+trend_convert := crossunder_lower_3_convert ? 1 : crossover_upper_3_convert ? -1 : bar_index == exit_bar_index ? trend_convert[1] == 1 and exit_bar_id == "C_L" ? 0 : trend_convert[1] == -1 and exit_bar_id == "C_S" ? 0 : trend_convert : trend_convert
+
+
+
+// 買賣訊號
+buy_long_condition_same = (g_same and low_same > upper_3_same and trend_same == 1 and trend_same[1] == 1) or (trend_same == 1 and trend_same[1] != 1 and low_same > upper_3_same)
+buy_short_conditin_same = (r_same and high_same < lower_3_same and trend_same == -1 and trend_same[1] == -1) or (trend_same == 1 and trend_same[1] != 1 and high_same < lower_3_same)
+buyed_same = 0
+buyed_same := nz(buyed_same[1], 0)
+buyed_same := buy_long_condition_same or buy_short_conditin_same ? 1 : cross_middle_same ? 0 : buyed_same
+
+up_same = high_same + (high_same - low_same)
+dn_same = low_same - (high_same - low_same)
+up_convert = low_convert - (high_convert - low_convert)
+dn_convert = high_convert + (high_convert - low_convert)
+
+buyShortCondition_same = trend_same == -1 and trend_same[1] != -1
+buyLongCondition_same = trend_same == 1 and trend_same[1] != 1
+buyShortCondition_convert = trend_convert == -1 and trend_convert[1] != -1
+buyLongCondition_convert = trend_convert == 1 and trend_convert[1] != 1
+
+// 順勢交易策略
+buyShortSignal_same = buy_short_conditin_same and not buyed_same[1]
+buyLongSignal_same = buy_long_condition_same and not buyed_same[1]
+
+// 逆勢交易策略
+buyShortSignal_convert = (since_upper_3_convert[1] < nz(since_upper_2_convert[1], 1000)) and crossunder_upper_2_convert and trend_convert == -1
+buyLongSignal_convert = (since_lower_3_convert[1] < nz(since_lower_2_convert[1], 1000)) and crossover_lower_2_convert and trend_convert == 1
+
+
+// upPlot_same = plot(my_strategy == "只有順勢" ? trend_same == 1 ? up_same : na : na, title = "做多區間", color = color.green, style = plot.style_linebr)
+// dnPlot_same = plot(my_strategy == "只有順勢" ? trend_same == -1 ? dn_same : na : na, title = "做空區間", color = color.red, style = plot.style_linebr)
+// upPlot_convert = plot(my_strategy == "只有逆勢" ? trend_convert == 1 ? up_convert : na : na, title = "做多區間", color = color.green, style = plot.style_linebr, linewidth = 2)
+// dnPlot_convert = plot(my_strategy == "只有逆勢" ? trend_convert == -1 ? dn_convert : na : na, title = "做空區間", color = color.red, style = plot.style_linebr, linewidth = 2)
+
+plotshape(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? buyLongCondition_same ? up_same : na : na, title = "做多開始", text = "買點", color = color.green, style = shape.labeldown, location = location.absolute, size = size.auto, textcolor = color.white)
+plotshape(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? buyShortCondition_same ? dn_same : na : na, title = "做空開始", text = "賣點", color = color.red, style = shape.labelup, location = location.absolute, size = size.auto, textcolor = color.white)
+plotshape(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? buyLongCondition_convert ? low_convert : na : na, title = "做多開始", color = color.green, style = shape.circle, location = location.absolute, size = size.tiny)
+plotshape(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? buyShortCondition_convert ? high_convert : na : na, title = "做空開始", color = color.red, style = shape.circle, location = location.absolute, size = size.tiny)
+
+plotshape(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? buyLongSignal_same : na, size = size.huge, color = color.green, style = shape.arrowdown, location = location.abovebar)
+plotshape(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? buyShortSignal_same : na, size = size.huge, color = color.red, style = shape.arrowup, location = location.belowbar)
+plotshape(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? buyShortSignal_convert : na, size = size.huge, color = color.red, style = shape.arrowdown, location = location.abovebar)
+plotshape(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? buyLongSignal_convert : na, size = size.huge, color = color.green, style = shape.arrowup, location = location.belowbar)
+
+// 止損
+tick_size = syminfo.mintick
+last_entry_index_same = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
+last_exit_index_same = strategy.closedtrades.exit_bar_index(strategy.closedtrades - 1)
+middle_price_in_entry_long_same = middle_3_same[bar_index - last_entry_index_same]
+middle_price_in_entry_short_same = middle_3_same[bar_index - last_entry_index_same]
+stop_tick_long_same = (strategy.position_avg_price - middle_price_in_entry_long_same)/tick_size
+stop_tick_short_same = (middle_price_in_entry_short_same - strategy.position_avg_price)/tick_size
+
+since_buyLong_condition_convert = ta.barssince(buyLongCondition_convert)
+since_buyLong_condition_convert := since_buyLong_condition_convert == 0 or na(since_buyLong_condition_convert) ? 0 : since_buyLong_condition_convert
+since_buyShort_condition_convert = ta.barssince(buyShortCondition_convert)
+since_buyShort_condition_convert := since_buyShort_condition_convert == 0 or na(since_buyShort_condition_convert) ? 0 : since_buyShort_condition_convert
+stop_tick_long_convert = (strategy.position_avg_price - math.min(ta.lowest(since_buyLong_condition_convert+1), low_convert))/tick_size
+stop_tick_short_convert = (math.max(ta.highest(since_buyShort_condition_convert+1), high_convert) - strategy.position_avg_price)/tick_size
+
+highest() =>
+    if since_buyShort_condition_convert == 0
+        high_convert[since_buyShort_condition_convert]
+    else
+        ta.highest(since_buyShort_condition_convert)
+
+lowest() =>
+    if since_buyLong_condition_convert == 0
+        low_convert[since_buyLong_condition_convert]
+    else
+        ta.lowest(since_buyLong_condition_convert)
+
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? trend_same == 1 and buyed_same ? middle_price_in_entry_long_same : na : na, color = color.green, style = plot.style_linebr, title = "順勢做多止損價")
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? trend_same == -1 and buyed_same ? middle_price_in_entry_short_same : na : na, color = color.red, style = plot.style_linebr, title = "順勢做空止損價")
+plot(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? trend_convert == 1 ? math.min(lowest(), low_convert, low_convert[since_buyLong_condition_convert]) : na : na, title = "逆勢做多止損價", color = color.green, style = plot.style_linebr)
+plot(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? trend_convert == -1 ? math.max(highest(), high_convert, high_convert[since_buyShort_condition_convert]) : na : na, title = "逆勢做空止損價", color = color.red, style = plot.style_linebr)
+
+// 順勢--------------------------------------------------------------------------
+if window()
+    if my_strategy == "只有順勢"
+    //  and strategy.position_size == 0
+        if buyLongSignal_same
+            alert("L_S", alert.freq_once_per_bar)
+            strategy.entry("L", strategy.long)
+            
+        if buyShortSignal_same
+            alert("S_S", alert.freq_once_per_bar)
+            strategy.entry("S", strategy.short)
+
+        strategy.exit("S_L", "L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss")
+        strategy.exit("S_S", "S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss")
+    // 逆勢-----------------------------------------------------------------------------
+    if my_strategy == "只有逆勢"
+        if buyLongSignal_convert
+            strategy.entry("L", strategy.long)
+        if buyShortSignal_convert
+            strategy.entry("S", strategy.short)
+
+        strategy.exit("C_L", "L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss")
+        strategy.exit("C_S", "S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss")
+    // 順勢主逆勢輔---------------------------------------------------------------------
+    // 1. 順勢有買入訊號就把出掉逆勢單
+    if my_strategy == "順勢主逆勢輔"
+        if buyLongSignal_same and (strategy.position_size == 0 or entry_bar_id != "S_L" or entry_bar_id != "S_S")
+            strategy.entry("S_L", strategy.long)
+        if buyShortSignal_same and (strategy.position_size == 0 or entry_bar_id != "S_L" or entry_bar_id != "S_S")
+            strategy.entry("S_S", strategy.short)
+
+        strategy.exit("exit", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss")
+        strategy.exit("exit", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss")
+        if buyLongSignal_convert and strategy.position_size == 0
+            strategy.entry("C_L", strategy.long)
+        if buyShortSignal_convert and strategy.position_size == 0
+            strategy.entry("C_S", strategy.short)
+        strategy.exit("C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss")
+        strategy.exit("C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss")
+
+    //逆勢主順勢輔---------------------------------------------------------------------
+    if my_strategy == "逆勢主順勢輔"
+        if buyLongSignal_convert and (strategy.position_size == 0 or entry_bar_id != "C_L" or entry_bar_id != "C_S")
+            strategy.entry("C_L", strategy.long)
+        if buyShortSignal_convert and (strategy.position_size == 0 or entry_bar_id != "C_L" or entry_bar_id != "C_S")
+            strategy.entry("C_S", strategy.short)
+        strategy.exit("C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss")
+        strategy.exit("C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss")   
+        if buyLongSignal_same and strategy.position_size == 0
+            strategy.entry("S_L", strategy.long)
+        if buyShortSignal_same and strategy.position_size == 0
+            strategy.entry("S_S", strategy.short)
+        strategy.exit("S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same)
+        strategy.exit("S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same)
+    //雙開流--------------------------------------------------------------------------
+    if my_strategy == "雙開流"
+        if buyLongSignal_same
+            strategy.entry("S_L", strategy.long)
+        if buyShortSignal_same
+            strategy.entry("S_S", strategy.short)
+        if buyLongSignal_convert
+            strategy.entry("C_L", strategy.long)
+        if buyShortSignal_convert
+            strategy.entry("C_S", strategy.short)
+        strategy.exit("exit", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same)
+        strategy.exit("exit", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same)
+        strategy.exit("exit", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert)
+        strategy.exit("exit", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert)

@@ -1,7 +1,7 @@
 // © sikako
 
 //@version=5
-strategy("KC_整合", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, commission_value = 0.04, initial_capital = 1000, process_orders_on_close = true, max_bars_back = 500)
+strategy("KC_整合", shorttile="KC", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, commission_value = 0.04, initial_capital = 1000, process_orders_on_close = true, max_bars_back = 500)
 
 
 

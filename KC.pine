@@ -1,7 +1,7 @@
 // © sikako
 
 //@version=5
-strategy("KC_整合", shorttitle = "KC", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, commission_value = 0.04, initial_capital = 1000, process_orders_on_close = true, max_bars_back = 500)
+strategy("KC_整合", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, commission_value = 0.04, initial_capital = 1000, process_orders_on_close = true, max_bars_back = 500)
 
 
 
@@ -214,8 +214,8 @@ if window()
             strategy.entry("S_L", strategy.long)
         if buyShortSignal_same and strategy.position_size == 0
             strategy.entry("S_S", strategy.short)
-        strategy.exit("S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same)
-        strategy.exit("S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same)
+        strategy.exit("S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss")
+        strategy.exit("S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss")
     //雙開流--------------------------------------------------------------------------
     if my_strategy == "雙開流"
         if buyLongSignal_same

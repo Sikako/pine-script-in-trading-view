@@ -1,7 +1,7 @@
 // © sikako
 
 //@version=5
-strategy("KC_整合", shorttitle = "KC", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000, process_orders_on_close = true, max_bars_back = 500)
+strategy("KC_整合", shorttitle = "KC", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000, max_bars_back = 500)
 
 
 
@@ -14,18 +14,18 @@ endTime = input.time(timestamp("1 Jan 3000 00:00 +0800"), "結束時間", group 
 window()  => time >= startTime and time <= endTime ? true : false
 
 // ------------------------------------
-same = input.string(defval = "120", title = "順勢基期(分鐘)", group =  "順勢參數")
-kc_length_same = input(defval = 240, title = "順勢 KC天數", group = "順勢參數")
-P_L_ratio_same = input(defval = 2.0, title = "順勢盈虧比", group = "順勢參數")
-convert = input.string(defval = "60", title = "逆勢基期(分鐘)", group = "逆勢參數")
-kc_length_convert = input(defval = 180, title = "逆勢 KC天數", group = "逆勢參數")
-P_L_ratio_convert = input(defval = 1.0, title = "逆勢盈虧比", group = "逆勢參數")
-mult1_same = input(defval = 2.0, title = "KC1順勢乘數", group = "順勢參數")
-mult2_same = input(defval = 3.0, title = "KC2順勢乘數", group = "順勢參數")
-mult1_convert = input(defval = 2.5, title = "KC1逆勢乘數", group = "逆勢參數")
-mult2_convert = input(defval = 3.0, title = "KC2逆勢乘數", group = "逆勢參數")
-trail_threshold = input(defval = 3, title = "開啟追蹤止損門檻(%)", group = "追蹤止損") / 100.0
-trail_percent = input(defval = 0.02, title = "最大回撤率(%)", group = "追蹤止損") / 100.0
+var same = input.string(defval = "120", title = "順勢基期(分鐘)", group =  "順勢參數")
+var kc_length_same = input(defval = 240, title = "順勢 KC天數", group = "順勢參數")
+var P_L_ratio_same = input(defval = 2.0, title = "順勢盈虧比", group = "順勢參數")
+var convert = input.string(defval = "60", title = "逆勢基期(分鐘)", group = "逆勢參數")
+var kc_length_convert = input(defval = 180, title = "逆勢 KC天數", group = "逆勢參數")
+var P_L_ratio_convert = input(defval = 1.0, title = "逆勢盈虧比", group = "逆勢參數")
+var mult1_same = input(defval = 2.0, title = "KC1順勢乘數", group = "順勢參數")
+var mult2_same = input(defval = 3.0, title = "KC2順勢乘數", group = "順勢參數")
+var mult1_convert = input(defval = 2.5, title = "KC1逆勢乘數", group = "逆勢參數")
+var mult2_convert = input(defval = 3.0, title = "KC2逆勢乘數", group = "逆勢參數")
+var trail_threshold = input(defval = 3, title = "開啟追蹤止損門檻(%)", group = "追蹤止損") / 100.0
+var trail_percent = input(defval = 0.02, title = "最大回撤率(%)", group = "追蹤止損") / 100.0
 
 
 [close_same, open_same, high_same, low_same] = request.security(syminfo.tickerid, same, [close, open, high, low])
@@ -43,7 +43,7 @@ plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_
 plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? lower_2_same : my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? lower_2_convert : na, color=color.yellow, title = "KC2下軌")
 plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? lower_3_same : my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? lower_3_convert : na, color=color.white, title = "KC3下軌")
 
-// 做多--------------------------------------------------------------
+// 綠棒--------------------------------------------------------------
 g_same = close_same > open_same
 g_convert = close_convert > open_convert
 
@@ -51,7 +51,7 @@ g_convert = close_convert > open_convert
 crossover_upper_3_same = ta.crossover(close_same, upper_3_same)
 crossover_upper_3_convert = ta.crossover(close_convert, upper_3_convert)
 
-// 做空-------------------------------------------------------------
+// 紅棒-------------------------------------------------------------
 r_same = close_same < open_same
 r_convert = close_convert < open_convert
 
@@ -79,23 +79,26 @@ entry_bar_index = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
 entry_bar_id = strategy.opentrades.entry_id(strategy.opentrades - 1)
 
 
-var trend_same = 0
+trend_same = 0
 trend_same := nz(trend_same[1], 0)
-trend_same := exit_bar_index == bar_index ? 0 : crossover_upper_3_same ? 1 : crossunder_lower_3_same ? -1 : cross_middle_same ? 0 : trend_same
+trend_same := crossover_upper_3_same ? 1 : crossunder_lower_3_same ? -1 : trend_same
+trend_same := exit_bar_index == bar_index and (exit_bar_id == "exit_S_L" or exit_bar_id == "exit_S_S") ? 0 : trend_same
 
 
 
 // ---------------------------------------------------------------------------
 
-var trend_convert = 0
+trend_convert = 0
 trend_convert := nz(trend_convert[1], 0)
-trend_convert := crossunder_lower_3_convert ? 1 : crossover_upper_3_convert ? -1 : bar_index == exit_bar_index ? trend_convert[1] == 1 and exit_bar_id == "C_L" ? 0 : trend_convert[1] == -1 and exit_bar_id == "C_S" ? 0 : trend_convert : trend_convert
+trend_convert := (crossunder_lower_3_convert and strategy.position_size >= 0) or (strategy.position_size > 0 and entry_bar_id == "C_L") ? 1 : trend_convert
+trend_convert := (crossover_upper_3_convert and strategy.position_size<= 0) or (strategy.position_size < 0 and entry_bar_id == "C_S") ? -1 : trend_convert
+trend_convert := bar_index == exit_bar_index and ((trend_convert[1] == 1 and exit_bar_id == "exit_C_L") or (trend_convert[1] == -1 and exit_bar_id == "exit_C_S")) ? 0 : trend_convert
 
-
+plot(trend_convert, color = color.aqua)
 
 // 買賣訊號
-buy_long_condition_same = (g_same and low_same > upper_3_same and trend_same == 1 and trend_same[1] == 1) or (trend_same == 1 and trend_same[1] != 1 and low_same > upper_3_same)
-buy_short_conditin_same = (r_same and high_same < lower_3_same and trend_same == -1 and trend_same[1] == -1) or (trend_same == 1 and trend_same[1] != 1 and high_same < lower_3_same)
+buy_long_condition_same = (g_same and low_same > upper_3_same and trend_same == 1 and trend_same[1] == 1) or (g_same and trend_same == 1 and trend_same[1] != 1 and low_same > upper_3_same)
+buy_short_conditin_same = (r_same and high_same < lower_3_same and trend_same == -1 and trend_same[1] == -1) or (r_same and trend_same == 1 and trend_same[1] != 1 and high_same < lower_3_same)
 buyed_same = 0
 buyed_same := nz(buyed_same[1], 0)
 buyed_same := buy_long_condition_same or buy_short_conditin_same ? 1 : cross_middle_same ? 0 : buyed_same
@@ -111,18 +114,14 @@ buyShortCondition_convert = trend_convert == -1 and trend_convert[1] != -1
 buyLongCondition_convert = trend_convert == 1 and trend_convert[1] != 1
 
 // 順勢交易策略
-buyShortSignal_same = buy_short_conditin_same and not buyed_same[1]
-buyLongSignal_same = buy_long_condition_same and not buyed_same[1]
+buyShortSignal_same = buy_short_conditin_same
+buyLongSignal_same = buy_long_condition_same
 
 // 逆勢交易策略
 buyShortSignal_convert = (since_upper_3_convert[1] < nz(since_upper_2_convert[1], 1000)) and crossunder_upper_2_convert and trend_convert == -1
 buyLongSignal_convert = (since_lower_3_convert[1] < nz(since_lower_2_convert[1], 1000)) and crossover_lower_2_convert and trend_convert == 1
 
 
-// upPlot_same = plot(my_strategy == "只有順勢" ? trend_same == 1 ? up_same : na : na, title = "做多區間", color = color.green, style = plot.style_linebr)
-// dnPlot_same = plot(my_strategy == "只有順勢" ? trend_same == -1 ? dn_same : na : na, title = "做空區間", color = color.red, style = plot.style_linebr)
-// upPlot_convert = plot(my_strategy == "只有逆勢" ? trend_convert == 1 ? up_convert : na : na, title = "做多區間", color = color.green, style = plot.style_linebr, linewidth = 2)
-// dnPlot_convert = plot(my_strategy == "只有逆勢" ? trend_convert == -1 ? dn_convert : na : na, title = "做空區間", color = color.red, style = plot.style_linebr, linewidth = 2)
 
 plotshape(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? buyLongCondition_same ? up_same : na : na, title = "做多開始", text = "買點", color = color.green, style = shape.labeldown, location = location.absolute, size = size.auto, textcolor = color.white)
 plotshape(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? buyShortCondition_same ? dn_same : na : na, title = "做空開始", text = "賣點", color = color.red, style = shape.labelup, location = location.absolute, size = size.auto, textcolor = color.white)
@@ -190,7 +189,6 @@ get_trail_offset(the_type, direction) =>
     strategy.opentrades.entry_price( strategy.opentrades - 1) * trail_percent / tick_size
 
 
-
 // 順勢--------------------------------------------------------------------------
 if window()
     if my_strategy == "只有順勢"
@@ -213,9 +211,9 @@ if window()
     // 順勢主逆勢輔---------------------------------------------------------------------
     // 1. 順勢有買入訊號就把出掉逆勢單
     if my_strategy == "順勢主逆勢輔"
-        if buyLongSignal_same and (strategy.position_size == 0 or entry_bar_id != "S_L" or entry_bar_id != "S_S")
+        if buyLongSignal_same and (strategy.position_size == 0 or (entry_bar_id != "S_L" and entry_bar_id == "S_S"))
             strategy.entry("S_L", strategy.long)
-        if buyShortSignal_same and (strategy.position_size == 0 or entry_bar_id != "S_L" or entry_bar_id != "S_S")
+        if buyShortSignal_same and (strategy.position_size == 0 or (entry_bar_id == "S_L" and entry_bar_id == "S_S"))
             strategy.entry("S_S", strategy.short)
 
         if buyLongSignal_convert and strategy.position_size == 0
@@ -225,9 +223,9 @@ if window()
 
     //逆勢主順勢輔---------------------------------------------------------------------
     if my_strategy == "逆勢主順勢輔"
-        if buyLongSignal_convert and (strategy.position_size == 0 or entry_bar_id != "C_L" or entry_bar_id != "C_S")
+        if buyLongSignal_convert and (strategy.position_size == 0 or (entry_bar_id != "C_L" and entry_bar_id != "C_S"))
             strategy.entry("C_L", strategy.long)
-        if buyShortSignal_convert and (strategy.position_size == 0 or entry_bar_id != "C_L" or entry_bar_id != "C_S")
+        if buyShortSignal_convert and (strategy.position_size == 0 or (entry_bar_id != "C_L" and entry_bar_id != "C_S"))
             strategy.entry("C_S", strategy.short)
         
         if buyLongSignal_same and strategy.position_size == 0
@@ -246,7 +244,7 @@ if window()
         if buyShortSignal_convert
             strategy.entry("C_S", strategy.short)
 
-    strategy.exit("S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss", trail_price = get_trail_price("L"), trail_offset = get_trail_offset("S", "L"), comment_trailing = "trail")
-    strategy.exit("S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss", trail_price = get_trail_price("S"), trail_offset = get_trail_offset("S", "S"), comment_trailing = "trail")
-    strategy.exit("C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss", trail_price = get_trail_price("L"), trail_offset = get_trail_offset("C", "L"), comment_trailing = "trail") 
-    strategy.exit("C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss", trail_price = get_trail_price("S"), trail_offset = get_trail_offset("C", "S"), comment_trailing = "trail")
+    strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss", trail_price = get_trail_price("L"), trail_offset = get_trail_offset("S", "L"), comment_trailing = "trail")
+    strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss", trail_price = get_trail_price("S"), trail_offset = get_trail_offset("S", "S"), comment_trailing = "trail")
+    strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss", trail_price = get_trail_price("L"), trail_offset = get_trail_offset("C", "L"), comment_trailing = "trail") 
+    strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss", trail_price = get_trail_price("S"), trail_offset = get_trail_offset("C", "S"), comment_trailing = "trail")

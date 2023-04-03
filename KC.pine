@@ -94,7 +94,6 @@ trend_convert := (crossunder_lower_3_convert and strategy.position_size >= 0) or
 trend_convert := (crossover_upper_3_convert and strategy.position_size<= 0) or (strategy.position_size < 0 and entry_bar_id == "C_S") ? -1 : trend_convert
 trend_convert := bar_index == exit_bar_index and ((trend_convert[1] == 1 and exit_bar_id == "exit_C_L") or (trend_convert[1] == -1 and exit_bar_id == "exit_C_S")) ? 0 : trend_convert
 
-plot(trend_convert, color = color.aqua)
 
 // 買賣訊號
 buy_long_condition_same = (g_same and low_same > upper_3_same and trend_same == 1 and trend_same[1] == 1) or (g_same and trend_same == 1 and trend_same[1] != 1 and low_same > upper_3_same)

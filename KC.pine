@@ -85,18 +85,20 @@ can_buy_same := cross_middle_same ? 1 : can_buy_same
 
 trend_same = 0
 trend_same := nz(trend_same[1], 0)
-trend_same := can_buy_same ? crossover_upper_3_same ? 1 : crossunder_lower_3_same ? -1 : trend_same : 0
 trend_same := exit_bar_index == bar_index and (exit_bar_id == "exit_S_L" or exit_bar_id == "exit_S_S") ? 0 : trend_same
+trend_same := can_buy_same ? crossover_upper_3_same ? 1 : crossunder_lower_3_same ? -1 : trend_same : 0
+
 
 
 
 // ---------------------------------------------------------------------------
 
 trend_convert = 0
+trend_convert := bar_index == exit_bar_index and ((trend_convert[1] == 1 and exit_bar_id == "exit_C_L") or (trend_convert[1] == -1 and exit_bar_id == "exit_C_S")) ? 0 : trend_convert
 trend_convert := nz(trend_convert[1], 0)
 trend_convert := (crossunder_lower_3_convert and strategy.position_size >= 0) or (strategy.position_size > 0 and entry_bar_id == "C_L") ? 1 : trend_convert
 trend_convert := (crossover_upper_3_convert and strategy.position_size<= 0) or (strategy.position_size < 0 and entry_bar_id == "C_S") ? -1 : trend_convert
-trend_convert := bar_index == exit_bar_index and ((trend_convert[1] == 1 and exit_bar_id == "exit_C_L") or (trend_convert[1] == -1 and exit_bar_id == "exit_C_S")) ? 0 : trend_convert
+
 
 
 // 買賣訊號

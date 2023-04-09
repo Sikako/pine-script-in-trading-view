@@ -1,7 +1,7 @@
 // © sikako
 
 //@version=5
-strategy("KC_整合", shorttitle = "KC", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000, max_bars_back = 500)
+strategy("KC_整合", shorttitle = "KC", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000, max_bars_back = 5000)
 
 
 
@@ -12,7 +12,6 @@ my_strategy = input.string(defval = "逆勢主順勢輔",title = "策略種類",
 startTime = input.time(timestamp("1 Jan 2018 00:00 +0800"), "開始時間", group = "回測時間")
 endTime = input.time(timestamp("1 Jan 3000 00:00 +0800"), "結束時間", group = "回測時間")
 window()  => time >= startTime and time <= endTime ? true : false
-
 // ------------------------------------
 var same = input.string(defval = "120", title = "順勢基期(分鐘)", group =  "順勢參數")
 var kc_length_same = input(defval = 240, title = "順勢 KC天數", group = "順勢參數")
@@ -26,6 +25,7 @@ var mult1_convert = input(defval = 2.5, title = "KC1逆勢乘數", group = "逆�
 var mult2_convert = input(defval = 3.0, title = "KC2逆勢乘數", group = "逆勢參數")
 var trail_threshold = input(defval = 3, title = "開啟追蹤止損門檻(%)", group = "追蹤止損") / 100.0
 var trail_percent = input(defval = 0.02, title = "最大回撤率(%)", group = "追蹤止損") / 100.0
+
 
 
 [close_same, open_same, high_same, low_same] = request.security(syminfo.tickerid, same, [close, open, high, low])
@@ -78,10 +78,14 @@ exit_bar_id = strategy.closedtrades.exit_id(strategy.closedtrades - 1)
 entry_bar_index = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
 entry_bar_id = strategy.opentrades.entry_id(strategy.opentrades - 1)
 
+can_buy_same = 1
+can_buy_same := nz(can_buy_same[1], 0)
+can_buy_same := exit_bar_index == bar_index and (exit_bar_id == "exit_S_L" or exit_bar_id == "exit_S_S") ? 0 : can_buy_same
+can_buy_same := cross_middle_same ? 1 : can_buy_same
 
 trend_same = 0
 trend_same := nz(trend_same[1], 0)
-trend_same := crossover_upper_3_same ? 1 : crossunder_lower_3_same ? -1 : trend_same
+trend_same := can_buy_same ? crossover_upper_3_same ? 1 : crossunder_lower_3_same ? -1 : trend_same : 0
 trend_same := exit_bar_index == bar_index and (exit_bar_id == "exit_S_L" or exit_bar_id == "exit_S_S") ? 0 : trend_same
 
 
@@ -96,11 +100,9 @@ trend_convert := bar_index == exit_bar_index and ((trend_convert[1] == 1 and exi
 
 
 // 買賣訊號
-buy_long_condition_same = (g_same and low_same > upper_3_same and trend_same == 1 and trend_same[1] == 1) or (g_same and trend_same == 1 and trend_same[1] != 1 and low_same > upper_3_same)
-buy_short_conditin_same = (r_same and high_same < lower_3_same and trend_same == -1 and trend_same[1] == -1) or (r_same and trend_same == 1 and trend_same[1] != 1 and high_same < lower_3_same)
-buyed_same = 0
-buyed_same := nz(buyed_same[1], 0)
-buyed_same := buy_long_condition_same or buy_short_conditin_same ? 1 : cross_middle_same ? 0 : buyed_same
+buy_long_condition_same = (g_same and low_same > upper_3_same and trend_same == 1 and trend_same[1] == 1)
+buy_short_conditin_same = (r_same and high_same < lower_3_same and trend_same == -1 and trend_same[1] == -1)
+
 
 up_same = high_same + (high_same - low_same)
 dn_same = low_same - (high_same - low_same)
@@ -141,6 +143,7 @@ middle_price_in_entry_short_same = middle_3_same[bar_index - last_entry_index_sa
 stop_tick_long_same = (strategy.position_avg_price - middle_price_in_entry_long_same)/tick_size
 stop_tick_short_same = (middle_price_in_entry_short_same - strategy.position_avg_price)/tick_size
 
+
 since_buyLong_condition_convert = ta.barssince(buyLongCondition_convert)
 since_buyLong_condition_convert := since_buyLong_condition_convert == 0 or na(since_buyLong_condition_convert) ? 0 : since_buyLong_condition_convert
 since_buyShort_condition_convert = ta.barssince(buyShortCondition_convert)
@@ -148,6 +151,8 @@ since_buyShort_condition_convert := since_buyShort_condition_convert == 0 or na(
 stop_tick_long_convert = (strategy.position_avg_price - math.min(ta.lowest(since_buyLong_condition_convert+1), low_convert))/tick_size
 stop_tick_short_convert = (math.max(ta.highest(since_buyShort_condition_convert+1), high_convert) - strategy.position_avg_price)/tick_size
 
+max_bars_back(since_buyLong_condition_convert, 500)
+max_bars_back(since_buyShort_condition_convert, 500)
 
 highest() =>
     if since_buyShort_condition_convert == 0
@@ -161,8 +166,8 @@ lowest() =>
     else
         ta.lowest(since_buyLong_condition_convert)
 
-plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? trend_same == 1 and buyed_same ? middle_price_in_entry_long_same : na : na, color = color.green, style = plot.style_linebr, title = "順勢做多止損價")
-plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? trend_same == -1 and buyed_same ? middle_price_in_entry_short_same : na : na, color = color.red, style = plot.style_linebr, title = "順勢做空止損價")
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? trend_same == 1  ? middle_price_in_entry_long_same : na : na, color = color.green, style = plot.style_linebr, title = "順勢做多止損價")
+plot(my_strategy == "只有順勢" or my_strategy == "順勢主逆勢輔" or my_strategy == "雙開流" ? trend_same == -1 ? middle_price_in_entry_short_same : na : na, color = color.red, style = plot.style_linebr, title = "順勢做空止損價")
 plot(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? trend_convert == 1 ? math.min(lowest(), low_convert, low_convert[since_buyLong_condition_convert]) : na : na, title = "逆勢做多止損價", color = color.green, style = plot.style_linebr)
 plot(my_strategy == "只有逆勢" or my_strategy == "逆勢主順勢輔" ? trend_convert == -1 ? math.max(highest(), high_convert, high_convert[since_buyShort_condition_convert]) : na : na, title = "逆勢做空止損價", color = color.red, style = plot.style_linebr)
 
@@ -188,15 +193,39 @@ get_trail_offset(the_type, direction) =>
     strategy.opentrades.entry_price( strategy.opentrades - 1) * trail_percent / tick_size
 
 
+// IMACD
+lengthMA = input(34)
+lengthSignal = input(9)
+calc_smma(src, len) =>
+    smma = 0.0
+	smma := na(smma[1]) ? ta.sma(src, len) : (smma[1] * (len - 1) + src) / len
+	smma
+
+calc_zlema(src, length) =>
+	ema1=ta.ema(src, length)
+	ema2=ta.ema(ema1, length)
+	d=ema1-ema2
+	ema1+d
+
+macd_src= ( high_convert + low_convert + close_convert ) / 3
+hi=calc_smma(high_convert, lengthMA)
+lo=calc_smma(low_convert, lengthMA)
+mi=calc_zlema(macd_src, lengthMA) 
+
+md=(mi>hi)? (mi-hi) : (mi<lo) ? (mi - lo) : 0
+sb=ta.sma(md, lengthSignal)
+sh=md-sb
+
+
 // 順勢--------------------------------------------------------------------------
 if window()
     if my_strategy == "只有順勢"
     //  and strategy.position_size == 0
-        if buyLongSignal_same
+        if buyLongSignal_same and strategy.position_size == 0
             alert("L_S", alert.freq_once_per_bar)
             strategy.entry("S_L", strategy.long)
             
-        if buyShortSignal_same
+        if buyShortSignal_same and strategy.position_size == 0
             alert("S_S", alert.freq_once_per_bar)
             strategy.entry("S_S", strategy.short)
 

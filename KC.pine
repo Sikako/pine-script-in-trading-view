@@ -24,7 +24,7 @@ var mult2_same = input(defval = 3.0, title = "KC2順勢乘數", group = "順勢�
 var mult1_convert = input(defval = 2.5, title = "KC1逆勢乘數", group = "逆勢參數")
 var mult2_convert = input(defval = 3.0, title = "KC2逆勢乘數", group = "逆勢參數")
 var trail_threshold = input(defval = 3, title = "開啟追蹤止損門檻(%)", group = "追蹤止損") / 100.0
-var trail_percent = input(defval = 0.02, title = "最大回撤率(%)", group = "追蹤止損") / 100.0
+// var trail_percent = input(defval = 0.02, title = "最大回撤率(%)", group = "追蹤止損") / 100.0
 
 
 
@@ -153,8 +153,8 @@ since_buyShort_condition_convert := since_buyShort_condition_convert == 0 or na(
 stop_tick_long_convert = (strategy.position_avg_price - math.min(ta.lowest(since_buyLong_condition_convert+1), low_convert))/tick_size
 stop_tick_short_convert = (math.max(ta.highest(since_buyShort_condition_convert+1), high_convert) - strategy.position_avg_price)/tick_size
 
-max_bars_back(since_buyLong_condition_convert, 500)
-max_bars_back(since_buyShort_condition_convert, 500)
+max_bars_back(since_buyLong_condition_convert, 5000)
+max_bars_back(since_buyShort_condition_convert, 5000)
 
 highest() =>
     if since_buyShort_condition_convert == 0
@@ -184,15 +184,20 @@ openprofit_percent = openprofit / math.abs(entry_price)
 // plot(entry_price)
 // plot(openprofit_percent, color=color.aqua)
 
+
 // 計算獲利%價格
 get_trail_price(direction) =>
     if direction == "L"
-        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1 + trail_threshold)
-    if direction == "S"
-        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1 - trail_threshold)
+        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 + trail_threshold)
+    else if direction == "S"
+        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 - trail_threshold)
 
-get_trail_offset(the_type, direction) =>   
-    strategy.opentrades.entry_price( strategy.opentrades - 1) * trail_percent / tick_size
+// 追蹤止損價格
+plot(entry_bar_id == "C_S" or entry_bar_id == "S_S" ? get_trail_price("S") : na,linewidth=2, style=plot.style_linebr)
+plot(entry_bar_id == "C_L" or entry_bar_id == "S_L" ? get_trail_price("L") : na,linewidth=2, style=plot.style_linebr)
+// plot(entry_bar_id == "C_L" or entry_bar_id == "S_L" ? strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 + trail_threshold) : na,linewidth=2, style=plot.style_linebr)
+// get_trail_offset(the_type, direction) =>   
+//     strategy.opentrades.entry_price( strategy.opentrades - 1) * trail_percent / tick_size
 
 
 // IMACD
@@ -274,7 +279,17 @@ if window()
         if buyShortSignal_convert
             strategy.entry("C_S", strategy.short)
 
-    strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss", trail_price = get_trail_price("L"), trail_offset = get_trail_offset("S", "L"), comment_trailing = "trail")
-    strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss", trail_price = get_trail_price("S"), trail_offset = get_trail_offset("S", "S"), comment_trailing = "trail")
-    strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss", trail_price = get_trail_price("L"), trail_offset = get_trail_offset("C", "L"), comment_trailing = "trail") 
-    strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss", trail_price = get_trail_price("S"), trail_offset = get_trail_offset("C", "S"), comment_trailing = "trail")
+    strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss")
+    strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss")
+    strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss") 
+    strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss")
+
+    if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_L" and close_same > get_trail_price("L")
+        strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, stop = get_trail_price("L"), comment_profit = "S_L_profit", comment_loss = "trail")
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_S" and close_same < get_trail_price("S")
+        strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, stop = get_trail_price("S"), comment_profit = "S_S_profit", comment_loss = "trail")
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_L" and close_convert > get_trail_price("L")
+        strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, stop = get_trail_price("L"), comment_profit = "C_L_profit", comment_loss = "trail")
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_S" and close_convert < get_trail_price("S")
+        strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, stop = get_trail_price("S"), comment_profit = "C_S_profit", comment_loss = "trail")
+        

@@ -23,9 +23,9 @@ var mult1_same = input(defval = 2.0, title = "KC1順勢乘數", group = "順勢�
 var mult2_same = input(defval = 3.0, title = "KC2順勢乘數", group = "順勢參數")
 var mult1_convert = input(defval = 2.5, title = "KC1逆勢乘數", group = "逆勢參數")
 var mult2_convert = input(defval = 3.0, title = "KC2逆勢乘數", group = "逆勢參數")
-var trail_threshold = input(defval = 3, title = "開啟追蹤止損門檻(%)", group = "追蹤止損") / 100.0
+var trail_threshold = input(defval = 3, title = "開啟追蹤止損門檻(%)", group = "止損") / 100.0
+var max_loss_rate = input(defval = 10.0, title = "單筆最大虧損率(%)", group = "止損") / 100.0
 // var trail_percent = input(defval = 0.02, title = "最大回撤率(%)", group = "追蹤止損") / 100.0
-
 
 
 [close_same, open_same, high_same, low_same] = request.security(syminfo.tickerid, same, [close, open, high, low])
@@ -77,6 +77,8 @@ exit_bar_comment = strategy.closedtrades.exit_comment(strategy.closedtrades - 1)
 exit_bar_id = strategy.closedtrades.exit_id(strategy.closedtrades - 1)
 entry_bar_index = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
 entry_bar_id = strategy.opentrades.entry_id(strategy.opentrades - 1)
+
+
 
 can_buy_same = 1
 can_buy_same := nz(can_buy_same[1], 0)
@@ -142,19 +144,27 @@ last_entry_index_same = strategy.opentrades.entry_bar_index(strategy.opentrades 
 last_exit_index_same = strategy.closedtrades.exit_bar_index(strategy.closedtrades - 1)
 middle_price_in_entry_long_same = middle_3_same[bar_index - last_entry_index_same]
 middle_price_in_entry_short_same = middle_3_same[bar_index - last_entry_index_same]
-stop_tick_long_same = (strategy.position_avg_price - middle_price_in_entry_long_same)/tick_size
-stop_tick_short_same = (middle_price_in_entry_short_same - strategy.position_avg_price)/tick_size
+stop_tick_long_same = (strategy.position_avg_price - middle_price_in_entry_long_same)
+stop_tick_short_same = (middle_price_in_entry_short_same - strategy.position_avg_price)
 
 
 since_buyLong_condition_convert = ta.barssince(buyLongCondition_convert)
 since_buyLong_condition_convert := since_buyLong_condition_convert == 0 or na(since_buyLong_condition_convert) ? 0 : since_buyLong_condition_convert
 since_buyShort_condition_convert = ta.barssince(buyShortCondition_convert)
 since_buyShort_condition_convert := since_buyShort_condition_convert == 0 or na(since_buyShort_condition_convert) ? 0 : since_buyShort_condition_convert
-stop_tick_long_convert = (strategy.position_avg_price - math.min(ta.lowest(since_buyLong_condition_convert+1), low_convert))/tick_size
-stop_tick_short_convert = (math.max(ta.highest(since_buyShort_condition_convert+1), high_convert) - strategy.position_avg_price)/tick_size
+stop_tick_long_convert = (strategy.position_avg_price - math.min(ta.lowest(since_buyLong_condition_convert+1), low_convert))
+stop_tick_short_convert = (math.max(ta.highest(since_buyShort_condition_convert+1), high_convert) - strategy.position_avg_price)
 
 max_bars_back(since_buyLong_condition_convert, 5000)
 max_bars_back(since_buyShort_condition_convert, 5000)
+max_bars_back(last_entry_index_same, 5000)
+max_bars_back(last_exit_index_same, 5000)
+max_bars_back(middle_price_in_entry_long_same, 5000)
+max_bars_back(middle_price_in_entry_short_same, 5000)
+max_bars_back(stop_tick_long_same, 5000)
+max_bars_back(stop_tick_short_same, 5000)
+max_bars_back(stop_tick_long_convert, 5000)
+max_bars_back(stop_tick_short_convert, 5000)
 
 highest() =>
     if since_buyShort_condition_convert == 0
@@ -183,6 +193,9 @@ openprofit_percent = openprofit / math.abs(entry_price)
 // plot(openprofit)
 // plot(entry_price)
 // plot(openprofit_percent, color=color.aqua)
+max_bars_back(openprofit, 5000)
+max_bars_back(entry_price, 5000)
+
 
 
 // 計算獲利%價格
@@ -192,36 +205,47 @@ get_trail_price(direction) =>
     else if direction == "S"
         strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 - trail_threshold)
 
+// 計算虧損%價格
+float min_loss_price = na
+get_loss_price(direction) =>
+    if direction == "L"
+        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 - max_loss_rate)
+    else if direction == "S"
+        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 + max_loss_rate)
+
 // 追蹤止損價格
 plot(entry_bar_id == "C_S" or entry_bar_id == "S_S" ? get_trail_price("S") : na,linewidth=2, style=plot.style_linebr)
 plot(entry_bar_id == "C_L" or entry_bar_id == "S_L" ? get_trail_price("L") : na,linewidth=2, style=plot.style_linebr)
+
+plot(entry_bar_id == "C_S" or entry_bar_id == "S_S" ? get_loss_price("S") : na,linewidth=2, style=plot.style_linebr, color = color.aqua)
+plot(entry_bar_id == "C_L" or entry_bar_id == "S_L" ? get_loss_price("L") : na,linewidth=2, style=plot.style_linebr, color = color.aqua)
 // plot(entry_bar_id == "C_L" or entry_bar_id == "S_L" ? strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 + trail_threshold) : na,linewidth=2, style=plot.style_linebr)
 // get_trail_offset(the_type, direction) =>   
 //     strategy.opentrades.entry_price( strategy.opentrades - 1) * trail_percent / tick_size
 
 
 // IMACD
-lengthMA = input(34)
-lengthSignal = input(9)
-calc_smma(src, len) =>
-    smma = 0.0
-	smma := na(smma[1]) ? ta.sma(src, len) : (smma[1] * (len - 1) + src) / len
-	smma
+// lengthMA = input(34)
+// lengthSignal = input(9)
+// calc_smma(src, len) =>
+//     smma = 0.0
+// 	smma := na(smma[1]) ? ta.sma(src, len) : (smma[1] * (len - 1) + src) / len
+// 	smma
 
-calc_zlema(src, length) =>
-	ema1=ta.ema(src, length)
-	ema2=ta.ema(ema1, length)
-	d=ema1-ema2
-	ema1+d
+// calc_zlema(src, length) =>
+// 	ema1=ta.ema(src, length)
+// 	ema2=ta.ema(ema1, length)
+// 	d=ema1-ema2
+// 	ema1+d
 
-macd_src= ( high_convert + low_convert + close_convert ) / 3
-hi=calc_smma(high_convert, lengthMA)
-lo=calc_smma(low_convert, lengthMA)
-mi=calc_zlema(macd_src, lengthMA) 
+// macd_src= ( high_convert + low_convert + close_convert ) / 3
+// hi=calc_smma(high_convert, lengthMA)
+// lo=calc_smma(low_convert, lengthMA)
+// mi=calc_zlema(macd_src, lengthMA) 
 
-md=(mi>hi)? (mi-hi) : (mi<lo) ? (mi - lo) : 0
-sb=ta.sma(md, lengthSignal)
-sh=md-sb
+// md=(mi>hi)? (mi-hi) : (mi<lo) ? (mi - lo) : 0
+// sb=ta.sma(md, lengthSignal)
+// sh=md-sb
 
 
 // 順勢--------------------------------------------------------------------------
@@ -246,9 +270,9 @@ if window()
     // 順勢主逆勢輔---------------------------------------------------------------------
     // 1. 順勢有買入訊號就把出掉逆勢單
     if my_strategy == "順勢主逆勢輔"
-        if buyLongSignal_same and (strategy.position_size == 0 or (entry_bar_id != "S_L" and entry_bar_id == "S_S"))
+        if buyLongSignal_same and (strategy.position_size == 0 or (entry_bar_id != "S_L" and entry_bar_id != "S_S"))
             strategy.entry("S_L", strategy.long)
-        if buyShortSignal_same and (strategy.position_size == 0 or (entry_bar_id == "S_L" and entry_bar_id == "S_S"))
+        if buyShortSignal_same and (strategy.position_size == 0 or (entry_bar_id != "S_L" and entry_bar_id != "S_S"))
             strategy.entry("S_S", strategy.short)
 
         if buyLongSignal_convert and strategy.position_size == 0
@@ -279,17 +303,47 @@ if window()
         if buyShortSignal_convert
             strategy.entry("C_S", strategy.short)
 
-    strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, loss = stop_tick_long_same, comment_profit = "S_L_profit", comment_loss = "S_L_loss")
-    strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, loss = stop_tick_short_same, comment_profit = "S_S_profit", comment_loss = "S_S_loss")
-    strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, loss = stop_tick_long_convert, comment_profit = "C_L_profit", comment_loss = "C_L_loss") 
-    strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, loss = stop_tick_short_convert, comment_profit = "C_S_profit", comment_loss = "C_S_loss")
+    // 找相對虧損較小%的價格當止損
 
+    if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_L"
+        if (get_loss_price("L") > stop_tick_long_same)
+            min_loss_price :=  get_loss_price("L")
+        else
+            min_loss_price := stop_tick_long_same
+        strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same/tick_size*P_L_ratio_same, loss = min_loss_price/tick_size, comment_profit = "S_L_profit", comment_loss = "S_L_loss")
+
+    else if  strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_S"
+        if (get_loss_price("S") < stop_tick_short_same)
+            min_loss_price := get_loss_price("S")
+        else
+            min_loss_price := stop_tick_short_same
+        strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same/tick_size*P_L_ratio_same, loss = min_loss_price/tick_size, comment_profit = "S_S_profit", comment_loss = "S_S_loss")
+
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_L"
+        if (get_loss_price("L") > stop_tick_long_convert)
+            min_loss_price := get_loss_price("L")
+        else
+            min_loss_price := stop_tick_long_convert
+        strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert/tick_size*P_L_ratio_convert, loss = min_loss_price/tick_size, comment_profit = "C_L_profit", comment_loss = "C_L_loss") 
+
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_S"
+        if (get_loss_price("S") < stop_tick_short_convert)
+            min_loss_price := get_loss_price("S")
+        else
+            min_loss_price := stop_tick_short_convert
+        strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert/tick_size*P_L_ratio_convert, loss = min_loss_price/tick_size, comment_profit = "C_S_profit", comment_loss = "C_S_loss")
+
+
+    
+    
+
+    // 追蹤止損
     if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_L" and close_same > get_trail_price("L")
-        strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same*P_L_ratio_same, stop = get_trail_price("L"), comment_profit = "S_L_profit", comment_loss = "trail")
+        strategy.exit("exit_S_L", "S_L", profit = stop_tick_long_same/tick_size*P_L_ratio_same, stop = get_trail_price("L"), comment_profit = "S_L_profit", comment_loss = "trail")
     else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_S" and close_same < get_trail_price("S")
-        strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same*P_L_ratio_same, stop = get_trail_price("S"), comment_profit = "S_S_profit", comment_loss = "trail")
+        strategy.exit("exit_S_S", "S_S", profit = stop_tick_short_same/tick_size*P_L_ratio_same, stop = get_trail_price("S"), comment_profit = "S_S_profit", comment_loss = "trail")
     else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_L" and close_convert > get_trail_price("L")
-        strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert*P_L_ratio_convert, stop = get_trail_price("L"), comment_profit = "C_L_profit", comment_loss = "trail")
+        strategy.exit("exit_C_L", "C_L", profit = stop_tick_long_convert/tick_size*P_L_ratio_convert, stop = get_trail_price("L"), comment_profit = "C_L_profit", comment_loss = "trail")
     else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_S" and close_convert < get_trail_price("S")
-        strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert*P_L_ratio_convert, stop = get_trail_price("S"), comment_profit = "C_S_profit", comment_loss = "trail")
+        strategy.exit("exit_C_S", "C_S", profit = stop_tick_short_convert/tick_size*P_L_ratio_convert, stop = get_trail_price("S"), comment_profit = "C_S_profit", comment_loss = "trail")
         

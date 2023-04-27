@@ -228,50 +228,50 @@ if window()
 
 
     if entry_bar_id == "S_L"
-        if (get_loss_price("L") < stop_price_long_same)
-            min_loss_price :=  get_loss_price("L")
+        if (strategy.opentrades.entry_price( strategy.opentrades - 1) - get_loss_price("L") < stop_price_long_same)
+            min_loss_price :=  strategy.opentrades.entry_price( strategy.opentrades - 1) - get_loss_price("L")
         else
             min_loss_price := stop_price_long_same
         strategy.exit("exit_S_L", "S_L", profit = stop_price_long_same/tick_size*P_L_ratio_same, loss = min_loss_price/tick_size, comment_profit = "S_L_profit", comment_loss = "S_L_loss")
 
     else if entry_bar_id == "S_S"
-        if (get_loss_price("S") < stop_price_short_same)
-            min_loss_price := get_loss_price("S")
+        if (get_loss_price("S") - strategy.opentrades.entry_price( strategy.opentrades - 1) < stop_price_short_same)
+            min_loss_price := get_loss_price("S") - strategy.opentrades.entry_price( strategy.opentrades - 1)
         else
             min_loss_price := stop_price_short_same
         strategy.exit("exit_S_S", "S_S", profit = stop_price_short_same/tick_size*P_L_ratio_same, loss = min_loss_price/tick_size, comment_profit = "S_S_profit", comment_loss = "S_S_loss")
 
     else if entry_bar_id == "C_L"
-        if (get_loss_price("L") < stop_price_long_convert)
-            min_loss_price := get_loss_price("L")
+        if (strategy.opentrades.entry_price( strategy.opentrades - 1) - get_loss_price("L") < stop_price_long_convert)
+            min_loss_price := strategy.opentrades.entry_price( strategy.opentrades - 1) - get_loss_price("L")
         else
             min_loss_price := stop_price_long_convert
         strategy.exit("exit_C_L", "C_L", profit = stop_price_long_convert/tick_size*P_L_ratio_convert, loss = min_loss_price/tick_size, comment_profit = "C_L_profit", comment_loss = "C_L_loss") 
 
     else if entry_bar_id == "C_S"
-        if (get_loss_price("S") < stop_price_short_convert)
-            min_loss_price := get_loss_price("S")
+        if (get_loss_price("S") - strategy.opentrades.entry_price( strategy.opentrades - 1) < stop_price_short_convert)
+            min_loss_price := get_loss_price("S") - strategy.opentrades.entry_price( strategy.opentrades - 1)
         else
             min_loss_price := stop_price_short_convert
         strategy.exit("exit_C_S", "C_S", profit = stop_price_short_convert/tick_size*P_L_ratio_convert, loss = min_loss_price/tick_size, comment_profit = "C_S_profit", comment_loss = "C_S_loss")
 
 
-    // 套保
-    if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_L" and close > get_trail_price("L")
-        strategy.exit("exit_S_L", "S_L", profit = stop_price_long_same/tick_size*P_L_ratio_same, stop = get_trail_price("L"), comment_profit = "S_L_profit", comment_loss = "trail")
-    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_S" and close < get_trail_price("S")
-        strategy.exit("exit_S_S", "S_S", profit = stop_price_short_same/tick_size*P_L_ratio_same, stop = get_trail_price("S"), comment_profit = "S_S_profit", comment_loss = "trail")
-    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_L" and close > get_trail_price("L")
-        strategy.exit("exit_C_L", "C_L", profit = stop_price_long_convert/tick_size*P_L_ratio_convert, stop = get_trail_price("L"), comment_profit = "C_L_profit", comment_loss = "trail")
-    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_S" and close < get_trail_price("S")
-        strategy.exit("exit_C_S", "C_S", profit = stop_price_short_convert/tick_size*P_L_ratio_convert, stop = get_trail_price("S"), comment_profit = "C_S_profit", comment_loss = "trail")
-
     // 套開倉
     if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_L" and close > get_tao_price("L")
-        strategy.exit("exit_S_L", "S_L", profit = stop_price_long_same/tick_size*P_L_ratio_same, loss = -300, comment_profit = "S_L_profit", comment_loss = "tao")
+        strategy.exit("exit_S_L", "S_L", profit = stop_price_long_same/tick_size*P_L_ratio_same, stop = strategy.opentrades.entry_price( strategy.opentrades - 1) * 1.005, comment_profit = "S_L_profit", comment_loss = "tao")
     else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_S" and close < get_tao_price("S")
-        strategy.exit("exit_S_S", "S_S", profit = stop_price_short_same/tick_size*P_L_ratio_same, loss = -300, comment_profit = "S_S_profit", comment_loss = "tao")
+        strategy.exit("exit_S_S", "S_S", profit = stop_price_short_same/tick_size*P_L_ratio_same, stop = strategy.opentrades.entry_price( strategy.opentrades - 1) * 0.995, comment_profit = "S_S_profit", comment_loss = "tao")
     else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_L" and close > get_tao_price("L")
-        strategy.exit("exit_C_L", "C_L", profit = stop_price_long_convert/tick_size*P_L_ratio_convert, loss = -300, comment_profit = "C_L_profit", comment_loss = "tao")
+        strategy.exit("exit_C_L", "C_L", profit = stop_price_long_convert/tick_size*P_L_ratio_convert, stop = strategy.opentrades.entry_price( strategy.opentrades - 1) * 1.005, comment_profit = "C_L_profit", comment_loss = "tao")
     else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_S" and close < get_tao_price("S")
-        strategy.exit("exit_C_S", "C_S", profit = stop_price_short_convert/tick_size*P_L_ratio_convert, loss = -300, comment_profit = "C_S_profit", comment_loss = "tao")
+        strategy.exit("exit_C_S", "C_S", profit = stop_price_short_convert/tick_size*P_L_ratio_convert, stop = strategy.opentrades.entry_price( strategy.opentrades - 1) * 0.995, comment_profit = "C_S_profit", comment_loss = "tao")
+
+        // 套保
+    if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_L" and close > get_trail_price("L")
+        strategy.exit("exit_S_L", "S_L", profit = (stop_price_long_same/tick_size)*P_L_ratio_same, stop = get_trail_price("L"), comment_profit = "S_L_profit", comment_loss = "trail")
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_S" and close < get_trail_price("S")
+        strategy.exit("exit_S_S", "S_S", profit = (stop_price_short_same/tick_size)*P_L_ratio_same, stop = get_trail_price("S"), comment_profit = "S_S_profit", comment_loss = "trail")
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_L" and close > get_trail_price("L")
+        strategy.exit("exit_C_L", "C_L", profit = (stop_price_long_convert/tick_size)*P_L_ratio_convert, stop = get_trail_price("L"), comment_profit = "C_L_profit", comment_loss = "trail")
+    else if strategy.opentrades.entry_id(strategy.opentrades - 1) == "C_S" and close < get_trail_price("S")
+        strategy.exit("exit_C_S", "C_S", profit = (stop_price_short_convert/tick_size)*P_L_ratio_convert, stop = get_trail_price("S"), comment_profit = "C_S_profit", comment_loss = "trail")

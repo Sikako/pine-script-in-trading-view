@@ -1,0 +1,215 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jpgoswami
+
+//@version=5
+strategy('X Trend', max_bars_back=5000, overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000)
+
+// date
+var startTime = input.time(timestamp("1 Jan 2022 00:00 +0800"), "開始時間", group = "回測時間")
+var endTime = input.time(timestamp("1 Jan 2024 00:00 +0800"), "結束時間", group = "回測時間")
+window()  => time >= startTime and time <= endTime ? true : false
+
+
+//inp_Amplitude = input(2, title = "Amplitude", type = input.integer)
+longEMALength = input(21, title = "EMA長度")
+
+longEMA = ta.ema(close, longEMALength)
+Lowest_Low = ta.lowest(low, 3)
+MA_Low = ta.ema(low, 3)
+
+Highest_High = ta.highest(high, 2)
+MA_High = ta.sma(high, 2)
+
+ATR_Half = ta.atr(100) / 2
+
+Next_Trend = 0
+Next_Trend := nz(Next_Trend[1], Next_Trend)
+
+Trend = 0
+Trend := nz(Trend[1], Trend)
+
+Low_Max = low[1]
+Low_Max := nz(Low_Max[1], Low_Max)
+
+High_Min = high[1]
+High_Min := nz(High_Min[1], High_Min)
+
+if Next_Trend == 1
+    Low_Max := math.max(Low_Max, Lowest_Low)
+    if MA_High < Low_Max and close < low[1]
+        Trend := 1
+        Next_Trend := 0
+        High_Min := Highest_High
+        High_Min
+
+if Next_Trend == 0
+    High_Min := math.min(High_Min, Highest_High)
+    if MA_Low > High_Min and close > high[1]
+        Trend := 0
+        Next_Trend := 1
+        Low_Max := Lowest_Low
+        Low_Max
+
+Arrow_Shift = 0.0
+Line_Color = color.gray
+
+Line_HT = close
+Line_HT := nz(Line_HT[1], Line_HT)
+
+if Trend == 0
+    Line_Color := color.blue
+    if Trend[1] == 0
+        Line_HT := math.max(Low_Max, Line_HT[1])
+        Line_HT
+    if Trend[1] == 1
+        Arrow_Shift := -1 * ta.atr(10)
+        Arrow_Shift
+
+if Trend == 1
+    Line_Color := color.orange
+    if Trend[1] == 1
+        Line_HT := math.min(High_Min, Line_HT[1])
+        Line_HT
+    if Trend[1] == 0
+        Arrow_Shift := 1 * ta.atr(10)
+        Arrow_Shift
+
+plot(Line_HT, color=color.new(Line_Color, 0), linewidth=2, title='X Trend')
+plot(longEMA, title='200 EMA', color=color.new(color.gray, 0), linewidth=2)
+plotshape(Arrow_Shift > 0 ? Line_HT + Arrow_Shift : na, style=shape.triangledown, location=location.absolute, color=color.new(Line_Color, 0), size=size.tiny)
+plotshape(Arrow_Shift < 0 ? Line_HT + Arrow_Shift : na, style=shape.triangleup, location=location.absolute, color=color.new(Line_Color, 0), size=size.tiny)
+
+
+// -------------------------------------------------------------------------
+
+amplitude = input(2, title="Amplitude", group = "Half Trend")
+channelDeviation = input(3, title="Channel Deviation", group = "Half Trend")
+showChannels = input(true, title="Show Channels", group = "Half Trend")
+
+var int trend = 0
+var int nextTrend = 0
+var float maxLowPrice = nz(low[1], low)
+var float minHighPrice = nz(high[1], high)
+
+var float up = 0.0
+var float down = 0.0
+float atrHigh = 0.0 // 空單止損
+float atrLow = 0.0  // 多單止損
+float arrowUp = na
+float arrowDown = na
+
+atr2 = ta.atr(100) / 2
+dev = channelDeviation * atr2
+
+highPrice = high[math.abs(ta.highestbars(amplitude))]
+lowPrice = low[math.abs(ta.lowestbars(amplitude))]
+highma = ta.sma(high, amplitude)
+lowma = ta.sma(low, amplitude)
+
+if nextTrend == 1
+	maxLowPrice := math.max(lowPrice, maxLowPrice)
+
+	if highma < maxLowPrice and close < nz(low[1], low)
+		trend := 1
+		nextTrend := 0
+		minHighPrice := highPrice
+else
+	minHighPrice := math.min(highPrice, minHighPrice)
+
+	if lowma > minHighPrice and close > nz(high[1], high)
+		trend := 0
+		nextTrend := 1
+		maxLowPrice := lowPrice
+
+if trend == 0
+	if not na(trend[1]) and trend[1] != 0
+		up := na(down[1]) ? down : down[1]
+		arrowUp := up - atr2
+	else
+		up := na(up[1]) ? maxLowPrice : math.max(maxLowPrice, up[1])
+	atrHigh := up + dev
+	atrLow := up - dev
+else
+	if not na(trend[1]) and trend[1] != 1 
+		down := na(up[1]) ? up : up[1]
+		arrowDown := down + atr2
+	else
+		down := na(down[1]) ? minHighPrice : math.min(minHighPrice, down[1])
+	atrHigh := down + dev
+	atrLow := down - dev
+
+ht = trend == 0 ? up : down
+
+var color buyColor = color.blue
+var color sellColor = color.red
+
+htColor = trend == 0 ? buyColor : sellColor
+// htPlot = plot(ht, title="HalfTrend", linewidth=2, color=htColor)
+
+atrHighPlot = plot(showChannels ? atrHigh : na, title="ATR High", style=plot.style_circles, color=sellColor)
+atrLowPlot = plot(showChannels ? atrLow : na, title="ATR Low", style=plot.style_circles, color=buyColor)
+
+// fill(htPlot, atrHighPlot, title="ATR High Ribbon", color=color.new(sellColor, 90))
+// fill(htPlot, atrLowPlot, title="ATR Low Ribbon", color=color.new(buyColor, 90))
+
+buySignal = not na(arrowUp) and (trend == 0 and trend[1] == 1)
+sellSignal = not na(arrowDown) and (trend == 1 and trend[1] == 0)
+
+// plotshape(showArrows and buySignal ? atrLow : na, title="Arrow Up", style=shape.triangleup, location=location.absolute, size=size.tiny, color=buyColor)
+// plotshape(showArrows and sellSignal ? atrHigh : na, title="Arrow Down", style=shape.triangledown, location=location.absolute, size=size.tiny, color=sellColor)
+
+
+
+// ---------------------------------------------------------------------------------------
+tick_size = syminfo.mintick
+entry_bar_index = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
+entry_price = strategy.opentrades.entry_price(strategy.opentrades - 1)
+entry_id = strategy.opentrades.entry_id(strategy.opentrades - 1)
+
+buyLongSignal = close > Line_HT and Trend == 0
+buyShortSignal = close < Line_HT and Trend == 1
+
+var trail_threshold = input(defval = 5, title = "開啟套保門檻(%)", group = "止損") / 100.0
+var firstEarnLossRatio = input(2, title = "首單盈虧比")
+
+// 計算套保價格
+get_trail_price(direction) =>
+    if direction == "L"
+        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 + trail_threshold)
+    else if direction == "S"
+        strategy.opentrades.entry_price( strategy.opentrades - 1) * (1.0 - trail_threshold)
+
+// 計算止盈價格
+var stop_price = 0.0
+get_profit() =>
+    profit = math.abs(entry_price - stop_price)/tick_size*firstEarnLossRatio
+    profit
+
+plot(entry_id == "short" ? get_trail_price("S") : na, style=plot.style_linebr, title = "空單套保價格", color = color.blue)
+plot(entry_id == "long" ? get_trail_price("L") : na, style=plot.style_linebr, title = "多單套保價格", color = color.blue)
+
+if window()
+    if buyLongSignal and strategy.position_size == 0
+        if strategy.position_size <= 0
+            stop_price := atrLow
+            strategy.entry("long", strategy.long)
+    if buyShortSignal and strategy.position_size == 0
+        if strategy.position_size >= 0
+            stop_price := atrHigh
+            strategy.entry("short", strategy.short)
+
+
+
+    strategy.exit("exit_long", "long", stop = stop_price, profit = get_profit(), comment_loss = "long_loss", comment_profit = "long_profit")
+    strategy.exit("exit_short", "short", stop = stop_price, profit = get_profit(), comment_loss = "short_loss", comment_profit = "short_profit")
+
+    // 套保
+    if  close > get_trail_price("L") and entry_id == "long"
+        strategy.exit("exit_long", "long", stop = get_trail_price("L"), profit = get_profit(), comment_loss = "trail", comment_profit = "long_profit")
+    if close < get_trail_price("S") and entry_id == "short"
+        strategy.exit("exit_short", "short", stop = get_trail_price("S"), profit = get_profit(), comment_loss = "trail", comment_profit = "short_profit") 
+
+    // if Trend == 0
+    //     strategy.close("long", comment = "trend")
+    // if Trend == 1
+    //     strategy.close("short", comment = "trend")

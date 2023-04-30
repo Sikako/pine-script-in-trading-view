@@ -5,8 +5,8 @@
 strategy('X Trend', max_bars_back=5000, overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000)
 
 // date
-var startTime = input.time(timestamp("1 Jan 2022 00:00 +0800"), "開始時間", group = "回測時間")
-var endTime = input.time(timestamp("1 Jan 2024 00:00 +0800"), "結束時間", group = "回測時間")
+var startTime = input.time(timestamp("1 Apr 2023 00:00 +0800"), "開始時間", group = "回測時間")
+var endTime = input.time(timestamp("7 Apr 2023 00:00 +0800"), "結束時間", group = "回測時間")
 window()  => time >= startTime and time <= endTime ? true : false
 
 
@@ -152,8 +152,8 @@ atrLowPlot = plot(showChannels ? atrLow : na, title="ATR Low", style=plot.style_
 // fill(htPlot, atrHighPlot, title="ATR High Ribbon", color=color.new(sellColor, 90))
 // fill(htPlot, atrLowPlot, title="ATR Low Ribbon", color=color.new(buyColor, 90))
 
-buySignal = not na(arrowUp) and (trend == 0 and trend[1] == 1)
-sellSignal = not na(arrowDown) and (trend == 1 and trend[1] == 0)
+// buySignal = not na(arrowUp) and (trend == 0 and trend[1] == 1)
+// sellSignal = not na(arrowDown) and (trend == 1 and trend[1] == 0)
 
 // plotshape(showArrows and buySignal ? atrLow : na, title="Arrow Up", style=shape.triangleup, location=location.absolute, size=size.tiny, color=buyColor)
 // plotshape(showArrows and sellSignal ? atrHigh : na, title="Arrow Down", style=shape.triangledown, location=location.absolute, size=size.tiny, color=sellColor)
@@ -166,11 +166,18 @@ entry_bar_index = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
 entry_price = strategy.opentrades.entry_price(strategy.opentrades - 1)
 entry_id = strategy.opentrades.entry_id(strategy.opentrades - 1)
 
-buyLongSignal = close > Line_HT and Trend == 0
-buyShortSignal = close < Line_HT and Trend == 1
+g = close > open
+r = close < open
 
-var trail_threshold = input(defval = 5, title = "開啟套保門檻(%)", group = "止損") / 100.0
-var firstEarnLossRatio = input(2, title = "首單盈虧比")
+var canbuy = true
+if ta.cross(close, longEMA)
+    canbuy := true
+
+buyLongSignal = Trend == 0 and close > longEMA and g
+buyShortSignal = Trend == 1 and close < longEMA and r
+
+var trail_threshold = input(defval = 2, title = "開啟套保門檻(%)", group = "止損") / 100.0
+var firstEarnLossRatio = input(1, title = "首單盈虧比")
 
 // 計算套保價格
 get_trail_price(direction) =>
@@ -182,34 +189,34 @@ get_trail_price(direction) =>
 // 計算止盈價格
 var stop_price = 0.0
 get_profit() =>
-    profit = math.abs(entry_price - stop_price)/tick_size*firstEarnLossRatio
+    profit = (math.abs(entry_price - stop_price)/tick_size)*firstEarnLossRatio
     profit
 
 plot(entry_id == "short" ? get_trail_price("S") : na, style=plot.style_linebr, title = "空單套保價格", color = color.blue)
 plot(entry_id == "long" ? get_trail_price("L") : na, style=plot.style_linebr, title = "多單套保價格", color = color.blue)
 
 if window()
-    if buyLongSignal and strategy.position_size == 0
-        if strategy.position_size <= 0
-            stop_price := atrLow
-            strategy.entry("long", strategy.long)
-    if buyShortSignal and strategy.position_size == 0
-        if strategy.position_size >= 0
-            stop_price := atrHigh
-            strategy.entry("short", strategy.short)
+    if Trend == 0 and Trend[1] == 1
+        strategy.close_all(comment = "trend")
+    else if Trend == 1 and Trend[1] == 0
+        strategy.close_all(comment = "trend")
 
+    if buyLongSignal and canbuy
+        stop_price := atrLow
+        strategy.entry("long", strategy.long)
+        canbuy := false
+    else if buyShortSignal and canbuy
+        stop_price := atrHigh
+        strategy.entry("short", strategy.short)
+        canbuy := false
 
 
     strategy.exit("exit_long", "long", stop = stop_price, profit = get_profit(), comment_loss = "long_loss", comment_profit = "long_profit")
     strategy.exit("exit_short", "short", stop = stop_price, profit = get_profit(), comment_loss = "short_loss", comment_profit = "short_profit")
 
     // 套保
-    if  close > get_trail_price("L") and entry_id == "long"
+    if  high > get_trail_price("L") and entry_id == "long"
         strategy.exit("exit_long", "long", stop = get_trail_price("L"), profit = get_profit(), comment_loss = "trail", comment_profit = "long_profit")
-    if close < get_trail_price("S") and entry_id == "short"
+    if low < get_trail_price("S") and entry_id == "short"
         strategy.exit("exit_short", "short", stop = get_trail_price("S"), profit = get_profit(), comment_loss = "trail", comment_profit = "short_profit") 
 
-    // if Trend == 0
-    //     strategy.close("long", comment = "trend")
-    // if Trend == 1
-    //     strategy.close("short", comment = "trend")

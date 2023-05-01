@@ -34,24 +34,29 @@ Low_Max := nz(Low_Max[1], Low_Max)
 High_Min = high[1]
 High_Min := nz(High_Min[1], High_Min)
 
+Arrow_Shift = 0.0
+Line_Color = color.gray
+
 if Next_Trend == 1
     Low_Max := math.max(Low_Max, Lowest_Low)
-    if MA_High < Low_Max and close < low[1]
+    // if MA_High < Low_Max and close < low[1]
+    if MA_High < Low_Max
         Trend := 1
         Next_Trend := 0
         High_Min := Highest_High
         High_Min
 
+
 if Next_Trend == 0
     High_Min := math.min(High_Min, Highest_High)
-    if MA_Low > High_Min and close > high[1]
+    // if MA_Low > High_Min and close > high[1]
+    if MA_Low > High_Min
         Trend := 0
         Next_Trend := 1
         Low_Max := Lowest_Low
         Low_Max
 
-Arrow_Shift = 0.0
-Line_Color = color.gray
+
 
 Line_HT = close
 Line_HT := nz(Line_HT[1], Line_HT)
@@ -78,6 +83,7 @@ plot(Line_HT, color=color.new(Line_Color, 0), linewidth=2, title='X Trend')
 plot(longEMA, title='200 EMA', color=color.new(color.gray, 0), linewidth=2)
 plotshape(Arrow_Shift > 0 ? Line_HT + Arrow_Shift : na, style=shape.triangledown, location=location.absolute, color=color.new(Line_Color, 0), size=size.tiny)
 plotshape(Arrow_Shift < 0 ? Line_HT + Arrow_Shift : na, style=shape.triangleup, location=location.absolute, color=color.new(Line_Color, 0), size=size.tiny)
+
 
 
 // -------------------------------------------------------------------------
@@ -201,11 +207,11 @@ if window()
     else if Trend == 1 and Trend[1] == 0
         strategy.close_all(comment = "trend")
 
-    if buyLongSignal and canbuy
+    if buyLongSignal and canbuy and strategy.position_size == 0
         stop_price := atrLow
         strategy.entry("long", strategy.long)
         canbuy := false
-    else if buyShortSignal and canbuy
+    else if buyShortSignal and canbuy and strategy.position_size == 0
         stop_price := atrHigh
         strategy.entry("short", strategy.short)
         canbuy := false

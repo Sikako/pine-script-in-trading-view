@@ -16,13 +16,17 @@ longEMALength = input(21, title = "EMA長度")
 longEMA = ta.ema(close, longEMALength)
 
 // ------------------------------------------------x trend
-Lowest_Low = ta.lowest(low, 3)
+lowest_low = input(3, title = "Lowest_Low", group = "x trend")
+highest_high = input(2, title = "Highest_High", group = "x trend")
+atr_half = input(100, title = "ATR_Half", group = "x trend")
+
+Lowest_Low = ta.lowest(low, lowest_low)
 MA_Low = ta.ema(low, 3)
 
-Highest_High = ta.highest(high, 2)
+Highest_High = ta.highest(high, highest_high)
 MA_High = ta.sma(high, 2)
 
-ATR_Half = ta.atr(100) / 2
+ATR_Half = ta.atr(atr_half) / 2
 
 Next_Trend = 0
 Next_Trend := nz(Next_Trend[1], Next_Trend)
@@ -106,7 +110,7 @@ float atrLow = 0.0  // 多單止損
 float arrowUp = na
 float arrowDown = na
 
-atr2 = ta.atr(100) / 2
+atr2 = ta.atr(atr_half) / 2
 dev = channelDeviation * atr2
 
 highPrice = high[math.abs(ta.highestbars(amplitude))]

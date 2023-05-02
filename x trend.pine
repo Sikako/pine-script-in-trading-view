@@ -2,7 +2,7 @@
 // © jpgoswami
 
 //@version=5
-strategy('X Trend', max_bars_back=5000, overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000)
+strategy('X Trend', max_bars_back=5000, overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.04, initial_capital = 1000, process_orders_on_close = true)
 
 // date
 var startTime = input.time(timestamp("1 Apr 2023 00:00 +0800"), "開始時間", group = "回測時間")
@@ -14,6 +14,8 @@ window()  => time >= startTime and time <= endTime ? true : false
 longEMALength = input(21, title = "EMA長度")
 
 longEMA = ta.ema(close, longEMALength)
+
+// ------------------------------------------------x trend
 Lowest_Low = ta.lowest(low, 3)
 MA_Low = ta.ema(low, 3)
 
@@ -86,7 +88,7 @@ plotshape(Arrow_Shift < 0 ? Line_HT + Arrow_Shift : na, style=shape.triangleup, 
 
 
 
-// -------------------------------------------------------------------------
+// -------------------------------------------------------------------------half trend
 
 amplitude = input(2, title="Amplitude", group = "Half Trend")
 channelDeviation = input(3, title="Channel Deviation", group = "Half Trend")
@@ -164,9 +166,30 @@ atrLowPlot = plot(showChannels ? atrLow : na, title="ATR Low", style=plot.style_
 // plotshape(showArrows and buySignal ? atrLow : na, title="Arrow Up", style=shape.triangleup, location=location.absolute, size=size.tiny, color=buyColor)
 // plotshape(showArrows and sellSignal ? atrHigh : na, title="Arrow Down", style=shape.triangledown, location=location.absolute, size=size.tiny, color=sellColor)
 
+// --------------------------------------------------------------------------------------imacd
+lengthMA = input(8, title = "IMACD LengthMA")
+lengthSignal = input(9, title = "IMACD Length Signal")
+smma = 0.0
+calc_smma(src, len) =>
+	smma=na(smma[1]) ? ta.sma(src, len) : (smma[1] * (len - 1) + src) / len
+	smma
 
+calc_zlema(src, length) =>
+	ema1=ta.ema(src, length)
+	ema2=ta.ema(ema1, length)
+	d=ema1-ema2
+	ema1+d
 
-// ---------------------------------------------------------------------------------------
+src=hlc3
+hi=calc_smma(high, lengthMA)
+lo=calc_smma(low, lengthMA)
+mi=calc_zlema(src, lengthMA) 
+
+md=(mi>hi)? (mi-hi) : (mi<lo) ? (mi - lo) : 0
+sb=ta.sma(md, lengthSignal)
+sh=md-sb
+
+// ---------------------------------------------------------------------------------------trade
 tick_size = syminfo.mintick
 entry_bar_index = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
 entry_price = strategy.opentrades.entry_price(strategy.opentrades - 1)
@@ -176,11 +199,11 @@ g = close > open
 r = close < open
 
 var canbuy = true
-if ta.cross(close, longEMA)
+if ta.cross(close, longEMA) and strategy.position_size == 0
     canbuy := true
 
-buyLongSignal = Trend == 0 and close > longEMA and g
-buyShortSignal = Trend == 1 and close < longEMA and r
+buyLongSignal = Trend == 0 and close > longEMA
+buyShortSignal = Trend == 1 and close < longEMA
 
 var trail_threshold = input(defval = 2, title = "開啟套保門檻(%)", group = "止損") / 100.0
 var firstEarnLossRatio = input(1, title = "首單盈虧比")
@@ -203,15 +226,17 @@ plot(entry_id == "long" ? get_trail_price("L") : na, style=plot.style_linebr, ti
 
 if window()
     if Trend == 0 and Trend[1] == 1
-        strategy.close_all(comment = "trend")
+        // strategy.close_all(comment = "trend")
+        canbuy := true
     else if Trend == 1 and Trend[1] == 0
-        strategy.close_all(comment = "trend")
+        // strategy.close_all(comment = "trend")
+        canbuy := true
 
-    if buyLongSignal and canbuy and strategy.position_size == 0
+    if buyLongSignal and canbuy and strategy.position_size <= 0
         stop_price := atrLow
         strategy.entry("long", strategy.long)
         canbuy := false
-    else if buyShortSignal and canbuy and strategy.position_size == 0
+    else if buyShortSignal and canbuy and strategy.position_size >= 0
         stop_price := atrHigh
         strategy.entry("short", strategy.short)
         canbuy := false

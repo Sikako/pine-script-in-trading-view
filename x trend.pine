@@ -167,11 +167,13 @@ atrLowPlot = plot(showChannels ? atrLow : na, title="ATR Low", style=plot.style_
 // plotshape(showArrows and sellSignal ? atrHigh : na, title="Arrow Down", style=shape.triangledown, location=location.absolute, size=size.tiny, color=sellColor)
 
 // --------------------------------------------------------------------------------------imacd
-lengthMA = input(8, title = "IMACD LengthMA")
-lengthSignal = input(9, title = "IMACD Length Signal")
-smma = 0.0
+enableImacd = input(true, title = "開啟IMACD過濾盤整", group = "imacd")
+lengthMA = input(13, title = "IMACD LengthMA", group = "imacd")
+lengthSignal = input(8, title = "IMACD Length Signal", group = "imacd")
+imacd_threshold = input.float(15, title = "IMACD 開倉門檻", group = "imacd")
 calc_smma(src, len) =>
-	smma=na(smma[1]) ? ta.sma(src, len) : (smma[1] * (len - 1) + src) / len
+    smma = 0.0
+	smma := na(smma[1]) ? ta.sma(src, len) : (smma[1] * (len - 1) + src) / len
 	smma
 
 calc_zlema(src, length) =>
@@ -189,6 +191,10 @@ md=(mi>hi)? (mi-hi) : (mi<lo) ? (mi - lo) : 0
 sb=ta.sma(md, lengthSignal)
 sh=md-sb
 
+plot(0, color=color.gray, linewidth=1, title="MidLine")
+plot(md, color=color.red, linewidth=2, title="ImpulseMACD", display = display.status_line+display.data_window)
+plot(sb, color=color.yellow, linewidth=2, title="ImpulseMACDCDSignal", display = display.status_line+display.data_window)
+
 // ---------------------------------------------------------------------------------------trade
 tick_size = syminfo.mintick
 entry_bar_index = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
@@ -199,11 +205,13 @@ g = close > open
 r = close < open
 
 var canbuy = true
-if ta.cross(close, longEMA) and strategy.position_size == 0
+if ta.cross(close, Line_HT) and strategy.position_size == 0
     canbuy := true
 
-buyLongSignal = Trend == 0 and close > longEMA
-buyShortSignal = Trend == 1 and close < longEMA
+imacdCondition = not ((imacd_threshold > md and md > -1*imacd_threshold) or (imacd_threshold > sb and sb > -1*imacd_threshold))
+
+buyLongSignal = enableImacd ? (Trend == 0 and close > longEMA and close > Line_HT and imacdCondition) : (Trend == 0 and close > longEMA and close > Line_HT)
+buyShortSignal = enableImacd ? (Trend == 1 and close < longEMA and close < Line_HT and imacdCondition) : (Trend == 1 and close < longEMA and close < Line_HT)
 
 var trail_threshold = input(defval = 2, title = "開啟套保門檻(%)", group = "止損") / 100.0
 var firstEarnLossRatio = input(1, title = "首單盈虧比")

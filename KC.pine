@@ -255,7 +255,6 @@ if window()
             min_loss_price := stop_price_short_convert
         strategy.exit("exit_C_S", "C_S", profit = stop_price_short_convert/tick_size*P_L_ratio_convert, loss = min_loss_price/tick_size, comment_profit = "C_S_profit", comment_loss = "C_S_loss")
 
-
     // 套開倉
     if strategy.opentrades.entry_id(strategy.opentrades - 1) == "S_L" and close > get_tao_price("L")
         strategy.exit("exit_S_L", "S_L", profit = stop_price_long_same/tick_size*P_L_ratio_same, stop = strategy.opentrades.entry_price( strategy.opentrades - 1) * 1.005, comment_profit = "S_L_profit", comment_loss = "tao")

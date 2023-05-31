@@ -1,0 +1,38 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sikako
+
+//@version=5
+strategy("sikako kc短線", overlay=true, default_qty_type = strategy.percent_of_equity, process_orders_on_close = true, default_qty_value = 95, initial_capital = 1000, commission_value = 0.04)
+
+kc_length_inner = input(13, title = "小KC Length", group = "kc")
+kc_mult_inner = input(1, title = "小KC Mult", group = "kc")
+[middle_kc, upper_kc_inner, lower_kc_inner] = ta.kc(close, kc_length_inner, kc_mult_inner)
+
+kc_length_outer = input(13, title = "小KC Length", group = "kc")
+kc_mult_outer = input(2, title = "小KC Mult", group = "kc")
+[middle_kc_outer, upper_kc_outer, lower_kc_outer] = ta.kc(close, kc_length_outer, kc_mult_outer)
+
+plot(upper_kc_outer, color = color.red, title = "大KC上軌")
+plot(upper_kc_inner, color=color.yellow, title = "小KC上軌")
+plot(middle_kc, color=color.blue, title = "KC中軌")
+plot(lower_kc_inner, color=color.yellow, title = "小KC下軌")
+plot(lower_kc_outer, color = color.red, title = "大KC下軌")
+
+var stop_price = 0.0
+var profit_price = 0.0
+
+longCondition = ta.crossover(close, lower_kc_inner) and close < middle_kc
+if (longCondition)
+    stop_price := lower_kc_outer
+    profit_price := upper_kc_inner
+    strategy.entry("long", strategy.long)
+
+shortCondition = ta.crossunder(close, upper_kc_inner) and close > middle_kc
+if (shortCondition)
+    stop_price := upper_kc_outer
+    profit_price := lower_kc_inner
+    strategy.entry("short", strategy.short)
+
+
+strategy.exit("exit", "long", limit = profit_price, stop = stop_price, trail_price = middle_kc, trail_offset = 10, comment_profit = "long_profit", comment_loss = "long_loss", comment_trailing = "long_trail")
+strategy.exit("exit", "short", limit = profit_price, stop = stop_price, trail_price = middle_kc, trail_offset = 10, comment_profit = "short_profit", comment_loss = "short_loss", comment_trailing = "short_trail")
